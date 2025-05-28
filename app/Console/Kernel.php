@@ -8,16 +8,14 @@ use App\Jobs\ReplicateHistoricalData;
 
 class Kernel extends ConsoleKernel
 {
-    /**
-     * Define the application's command schedule.
-     */
+   
     protected function schedule(Schedule $schedule): void
     {
         $schedule->job(new ReplicateHistoricalData)->dailyAt('00:00');
     }
 
     /**
-     * Register the commands for the application.
+     * Registra los comandos para aplicación.
      */
     protected function commands(): void
     {
