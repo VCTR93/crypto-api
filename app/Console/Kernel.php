@@ -11,7 +11,7 @@ class Kernel extends ConsoleKernel
    
     protected function schedule(Schedule $schedule): void
     {
-        $schedule->job(new ReplicateHistoricalData)->dailyAt('00:00');
+        $schedule->command('app:actualizar-precios-cripto')->everyMinute()->skip(false);
     }
 
     /**

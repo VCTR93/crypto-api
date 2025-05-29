@@ -10,8 +10,14 @@ class CryptoHistory extends Model
     protected $fillable = [
         'crypto_currency_id',
         'price',
-        'date', 
+        'date',
     ];
+
+    protected $casts = [
+        'price' => 'decimal:8', // Para precisión alta
+        'date' => 'datetime',
+    ];
+
 
     // los campos 'created_at' y 'updated_at' se desactivaron, ya que 'date' cumple la función  de timestand en la tabla
     public $timestamps = false; 

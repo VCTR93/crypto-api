@@ -8,7 +8,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CryptoCurrency extends Model
 {
-    protected $fillable = ['name', 'symbol', 'current_price', 'currency_id'];
+    protected $fillable = [
+        'name',
+        'symbol',
+        'current_price',
+        'currency_id', // Para la relación con la moneda fiduciaria
+    ];
+
+    protected $casts = [
+        'current_price' => 'decimal:8', // Para precisión alta
+    ];
 
     public function currency(): BelongsTo
     {
