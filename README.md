@@ -19,6 +19,9 @@
 - app/Controllers/AuthController.php (Controlador para autenticación)
 - app/Controllers/CryptoController.php (Controlador para criptomonedas)
 - app/Controllers/UserController.php (Controlador para usuarios)
+- usar el comando `php artisan migrate:fresh --seed` para crear la base de datos con valores en las tablas currencies, cripto_currencies
+- usar el comando `php artisan config:clear` para limpiar la cache de configuración
+- usar el comando `php artisan app:actualizar-precios-cripto` para actualizar los precios de las criptomonedas
 
 ## Instalación
 1. Clonar repositorio:

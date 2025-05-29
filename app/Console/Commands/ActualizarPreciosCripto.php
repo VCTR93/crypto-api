@@ -6,140 +6,210 @@ use Illuminate\Console\Command;
 use Throwable;
 use Illuminate\Support\Facades\Log;
 use GuzzleHttp\Client;
-// Importa tus modelos correctos según tus migraciones:
-use App\Models\Currency; // Para la tabla 'currencies'
-use App\Models\CryptoCurrency; // Para la tabla 'crypto_currencies'
-use App\Models\CryptoHistory; // Para la tabla 'crypto_histories' (si la usas)
-
+use App\Models\Currency;
+use App\Models\CryptoCurrency;
+use App\Models\CryptoHistory;
+use App\Models\CryptoPrice;
 
 class ActualizarPreciosCripto extends Command
 {
     protected $signature = 'app:actualizar-precios-cripto';
-    protected $description = 'Actualiza los precios actuales y el historial de las criptomonedas';
+    protected $description = 'Actualiza los precios actuales y el historial de las criptomonedas en USD y EUR';
 
     public function handle()
     {
         try {
-            $this->info('Actualizando precios de criptomonedas...');
+            $this->info('Iniciando actualización de precios de criptomonedas...');
 
-            // Paso 1: Obtener el ID de la moneda fiduciaria (ej. USD)
-            // Asume que siempre actualizas precios en USD.
-            // Si la moneda no existe, el comando fallará.
+            // Obtener las monedas fiduciarias (USD y EUR)
             $usdCurrency = Currency::where('code', 'USD')->first();
+            $eurCurrency = Currency::where('code', 'EUR')->first();
 
             if (!$usdCurrency) {
                 $this->error('ERROR: Moneda USD no encontrada en la tabla currencies. ¡Asegúrate de que exista!');
-                Log::error('Moneda USD no encontrada al actualizar precios de criptomonedas.');
-                return Command::FAILURE; // Detener la ejecución si no se encuentra USD
+                return Command::FAILURE;
+            }
+            if (!$eurCurrency) {
+                $this->error('ERROR: Moneda EUR no encontrada en la tabla currencies. ¡Asegúrate de que exista!');
+                return Command::FAILURE;
             }
 
-            // Paso 2: Obtener los precios de la API (ej. CoinGecko)
+            // Obtener los precios de la API
+            $this->line("--- Fetching API Prices ---");
             $apiPrices = $this->fetchCryptoPrices();
+            $this->line("--- Raw API Data Formatted (Console Output) ---");
+            dump($apiPrices);
+            $this->line("--- End Raw API Data Formatted ---");
 
             if (empty($apiPrices)) {
-                $this->warn('No se pudieron obtener precios de criptomonedas de la API. Saliendo.');
-                Log::warning('No se obtuvieron precios de criptomonedas al actualizar desde la API.');
-                return Command::SUCCESS; // No hay datos, pero no es un fallo fatal
+                $this->warn('No se pudieron obtener precios de la API. Saliendo.');
+                return Command::SUCCESS;
             }
 
-            // Paso 3: Procesar y guardar los precios
-            $updatedCount = 0;
+            $updatedCurrentPricesCount = 0;
             $historyAddedCount = 0;
 
-            foreach ($apiPrices as $apiSymbol => $data) {
-                $cryptoPrice = $data['usd'] ?? null; // Asumiendo que la API devuelve precios en USD
+            foreach ($apiPrices as $apiSymbol => $priceData) {
+                $this->line("--- Processing Symbol: {$apiSymbol} ---");
 
-                if ($cryptoPrice !== null) {
-                    // Buscar la criptomoneda por su símbolo (ej. 'btc', 'eth')
-                    $cryptoCurrency = CryptoCurrency::where('symbol', strtoupper($apiSymbol))->first();
+                $cryptoCurrency = CryptoCurrency::where('symbol', strtoupper($apiSymbol))->first();
 
-                    if ($cryptoCurrency) {
-                        // Actualizar el precio actual en la tabla crypto_currencies
-                        $cryptoCurrency->current_price = $cryptoPrice;
-                        $cryptoCurrency->currency_id = $usdCurrency->id; // Asignar el ID de USD
-                        $cryptoCurrency->save();
-                        $updatedCount++;
-                        $this->info("Precio de {$cryptoCurrency->name} ({$cryptoCurrency->symbol}) actualizado a $ {$cryptoPrice}");
+                if (!$cryptoCurrency) {
+                    $this->warn("Criptomoneda con símbolo {$apiSymbol} no encontrada en la DB. Saltando...");
+                    continue;
+                }
 
-                        // Opcional: Guardar en el historial de precios
-                        CryptoHistory::create([
+                // actualiza los valores de la tabla `crypto_prices` para USD
+                $usdPrice = $priceData['usd'] ?? null;
+                $this->line("DEBUG: Precio USD para {$apiSymbol}: " . var_export($usdPrice, true) . ", is_numeric: " . (is_numeric($usdPrice) ? 'true' : 'false'));
+
+                if ($usdPrice !== null && is_numeric($usdPrice)) {
+                    CryptoPrice::updateOrCreate(
+                        [
                             'crypto_currency_id' => $cryptoCurrency->id,
-                            'price' => $cryptoPrice,
-                            'date' => now(), // Registra la fecha y hora actual
-                        ]);
-                        $historyAddedCount++;
-
-                    } else {
-                        $this->warn("Criptomoneda con símbolo {$apiSymbol} no encontrada en la tabla crypto_currencies. Saltando.");
-                        Log::warning("Criptomoneda no encontrada en DB: {$apiSymbol}");
-                    }
+                            'currency_id' => $usdCurrency->id,
+                        ],
+                        [
+                            'price_value' => $usdPrice,
+                        ]
+                    );
+                    $updatedCurrentPricesCount++;
+                    $this->info("Precio actual de {$cryptoCurrency->symbol} en USD actualizado a \${$usdPrice}");
                 } else {
-                    $this->warn("Precio USD no disponible para {$apiSymbol} en la respuesta de la API.");
+                    $this->warn("Precio USD no disponible o inválido para {$apiSymbol}. NO SE ACTUALIZARÁ.");
+                }
+
+                // actualiza los valores de la tabla `crypto_prices` para EUR
+                $eurPrice = $priceData['eur'] ?? null;
+                $this->line("DEBUG: Precio EUR para {$apiSymbol}: " . var_export($eurPrice, true) . ", is_numeric: " . (is_numeric($eurPrice) ? 'true' : 'false'));
+
+                if ($eurPrice !== null && is_numeric($eurPrice)) {
+                    CryptoPrice::updateOrCreate(
+                        [
+                            'crypto_currency_id' => $cryptoCurrency->id,
+                            'currency_id' => $eurCurrency->id,
+                        ],
+                        [
+                            'price_value' => $eurPrice,
+                        ]
+                    );
+                    $updatedCurrentPricesCount++;
+                    $this->info("Precio actual de {$cryptoCurrency->symbol} en EUR actualizado a €{$eurPrice}");
+                } else {
+                    $this->warn("Precio EUR no disponible o inválido para {$apiSymbol}. NO SE ACTUALIZARÁ.");
+                }
+
+                // --- se encarga de guardar el historial de la criptomonedas (`crypto_histories`) ---
+                if ($usdPrice !== null && is_numeric($usdPrice)) {
+                    CryptoHistory::create([
+                        'crypto_currency_id' => $cryptoCurrency->id,
+                        'currency_id' => $usdCurrency->id, 
+                        'price' => $usdPrice,
+                        'date' => now(),
+                    ]);
+                    $historyAddedCount++;
+                }
+
+                if ($eurPrice !== null && is_numeric($eurPrice)) {
+                    CryptoHistory::create([
+                        'crypto_currency_id' => $cryptoCurrency->id,
+                        'currency_id' => $eurCurrency->id, 
+                        'price' => $eurPrice,
+                        'date' => now(),
+                    ]);
+                    $historyAddedCount++;
                 }
             }
 
-            $this->info("Proceso completado. Se actualizaron {$updatedCount} criptomonedas y se añadieron {$historyAddedCount} registros al historial.");
+            $this->info("Completado: {$updatedCurrentPricesCount} precios actuales actualizados y {$historyAddedCount} registros históricos añadidos.");
             return Command::SUCCESS;
 
         } catch (Throwable $e) {
-            $this->error('¡ERROR FATAL al ejecutar el comando ActualizarPreciosCripto!');
-            $this->error('Mensaje de error: ' . $e->getMessage());
-            $this->error('Archivo del error: ' . $e->getFile() . ' (Línea: ' . $e->getLine() . ')');
-            
-            Log::error('Error detallado en ActualizarPreciosCripto: ' . $e->getMessage(), ['exception' => $e]);
-            return Command::FAILURE; // Indicar que el comando falló
+            $this->handleError($e);
+            return Command::FAILURE;
         }
     }
 
-    /**
-     * Fetches cryptocurrency prices from a public API (e.g., CoinGecko).
-     * Puedes ajustar esta URL para obtener las criptomonedas que necesites.
-     *
-     * @return array Associative array of symbol => price data (e.g., ['bitcoin' => ['usd' => 60000]])
-     */
     protected function fetchCryptoPrices(): array
     {
         $client = new Client();
-        $prices = [];
-        try {
-            // Ejemplo con CoinGecko para Bitcoin y Ethereum
-            // Asegúrate de que los IDs aquí (bitcoin, ethereum) coincidan con lo que quieres obtener
-            $response = $client->get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,cardano&vs_currencies=usd');
-            $data = json_decode($response->getBody()->getContents(), true);
+        $cryptoIds = 'bitcoin,ethereum,solana,cardano';
+        $vsCurrencies = 'usd,eur';
 
-            // Reestructura los datos para que sean fáciles de usar, convirtiendo el ID a un símbolo común
-            // NOTA: CoinGecko usa IDs como 'bitcoin', no símbolos como 'BTC' directamente en la respuesta.
-            // Necesitas mapear esos IDs a tus símbolos de DB (BTC, ETH, SOL, ADA).
-            if (!empty($data)) {
-                if (isset($data['bitcoin'])) {
-                    $prices['btc'] = ['usd' => $data['bitcoin']['usd']];
-                }
-                if (isset($data['ethereum'])) {
-                    $prices['eth'] = ['usd' => $data['ethereum']['usd']];
-                }
-                if (isset($data['solana'])) {
-                    $prices['sol'] = ['usd' => $data['solana']['usd']];
-                }
-                 if (isset($data['cardano'])) {
-                    $prices['ada'] = ['usd' => $data['cardano']['usd']];
-                }
+        try {
+            $response = $client->get("https://api.coingecko.com/api/v3/simple/price", [
+                'query' => [
+                    'ids' => $cryptoIds,
+                    'vs_currencies' => $vsCurrencies,
+                ],
+                'verify' => false
+            ]);
+
+            $contents = $response->getBody()->getContents();
+            $this->line("--- Raw CoinGecko API Response (Console Output) ---");
+            dump($contents);
+            $this->line("--- End Raw CoinGecko API Response ---");
+
+            $data = json_decode($contents, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $this->error('Error al decodificar la respuesta JSON de la API.');
+                return [];
             }
-            
-            Log::info('Precios de criptomonedas obtenidos de la API CoinGecko.');
+
+            $this->info('Precios de criptomonedas obtenidos de la API CoinGecko.');
+            return $this->formatApiData($data);
 
         } catch (\GuzzleHttp\Exception\ClientException $e) {
-            $this->error('Error del cliente HTTP (4xx) al obtener precios de la API: ' . $e->getMessage());
-            Log::error('Guzzle Client Error: ' . $e->getMessage(), ['exception' => $e, 'code' => $e->getCode()]);
+            $this->error('Error del cliente HTTP (4xx) al obtener precios: ' . $e->getMessage());
         } catch (\GuzzleHttp\Exception\ServerException $e) {
             $this->error('Error del servidor API (5xx) al obtener precios: ' . $e->getMessage());
-            Log::error('Guzzle Server Error: ' . $e->getMessage(), ['exception' => $e, 'code' => $e->getCode()]);
         } catch (\GuzzleHttp\Exception\RequestException $e) {
-            $this->error('Error de red/solicitud al obtener precios de la API: ' . $e->getMessage());
-            Log::error('Guzzle Request Error: ' . $e->getMessage(), ['exception' => $e]);
+            $this->error('Error de red/solicitud al obtener precios: ' . $e->getMessage());
         } catch (Throwable $e) {
             $this->error('Error inesperado al obtener precios de la API: ' . $e->getMessage());
-            Log::error('API Fetch Unknown Error: ' . $e->getMessage(), ['exception' => $e]);
         }
-        return $prices;
+        return [];
+    }
+
+    protected function formatApiData(array $apiData): array
+    {
+        $formatted = [];
+
+        foreach ($apiData as $cryptoName => $currencies) {
+            $symbol = $this->mapCryptoNameToSymbol($cryptoName);
+            if ($symbol) {
+                $formatted[$symbol] = [
+                    'usd' => $currencies['usd'] ?? null,
+                    'eur' => $currencies['eur'] ?? null
+                ];
+            }
+        }
+        return $formatted;
+    }
+
+    protected function mapCryptoNameToSymbol(string $name): ?string
+    {
+        $mapping = [
+            'bitcoin' => 'btc',
+            'ethereum' => 'eth',
+            'solana' => 'sol',
+            'cardano' => 'ada',
+        ];
+
+        return $mapping[strtolower($name)] ?? null;
+    }
+
+    protected function handleError(Throwable $e): void
+    {
+        $this->error("ERROR CRÍTICO DEL COMANDO: {$e->getMessage()}");
+        $this->error("Archivo: {$e->getFile()}:{$e->getLine()}");
+        Log::error("Command Fatal Error", [
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTraceAsString(),
+            'exception' => $e
+        ]);
     }
 }

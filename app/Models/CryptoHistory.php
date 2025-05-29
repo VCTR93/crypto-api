@@ -9,6 +9,7 @@ class CryptoHistory extends Model
 {
     protected $fillable = [
         'crypto_currency_id',
+        'currency_id', 
         'price',
         'date',
     ];
@@ -18,8 +19,6 @@ class CryptoHistory extends Model
         'date' => 'datetime',
     ];
 
-
-    // los campos 'created_at' y 'updated_at' se desactivaron, ya que 'date' cumple la función  de timestand en la tabla
     public $timestamps = false; 
 
     public function cryptoCurrency(): BelongsTo

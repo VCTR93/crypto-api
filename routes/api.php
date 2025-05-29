@@ -10,4 +10,11 @@ Route::post('/auth/login', [AuthController::class, 'login']);
     Route::middleware([JwtMiddleware::class])->group(function () {
     Route::apiResource('moneda', CryptoCurrencyController::class);
     Route::apiResource('criptomoneda', CryptoCurrencyController::class)->except(['update', 'destroy']);
+
+    Route::apiResource('cryptos', CryptoCurrencyController::class)->only([
+        'index', 'store', 'show'
+    ]);
+    
+    // Opcional: Ruta para actualizar precios
+    Route::post('cryptos/{id}/prices', [CryptoCurrencyController::class, 'addPrice']);
 });

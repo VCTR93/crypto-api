@@ -28,4 +28,21 @@ class CryptoCurrency extends Model
     {
         return $this->hasMany(CryptoHistory::class);
     }
+
+    public function prices()
+    {
+        return $this->hasMany(CryptoPrice::class);
+    }
+    
+    // Accesor para precio en USD
+    public function getUsdPriceAttribute()
+    {
+        return $this->prices->firstWhere('currency.code', 'USD');
+    }
+    
+    // Accesor para precio en EUR
+    public function getEurPriceAttribute()
+    {
+        return $this->prices->firstWhere('currency.code', 'EUR');
+    }
 }
