@@ -33,6 +33,8 @@
 - DB_USERNAME=postgres
 - DB_PASSWORD=1234
 
+- crear con postgreSQL la base de datos llamada api_crypto, posteriormente usar los comandos de migración para crear las tablas de la base de datos
+
 
 ## Instalación
 1. Clonar repositorio:
