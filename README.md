@@ -23,7 +23,7 @@
 - usar el comando `php artisan config:clear` para limpiar la cache de configuración
 - usar el comando `php artisan app:actualizar-precios-cripto` para actualizar los precios de las criptomonedas
 - configuracion del archivo .env
-<!-- 
+
 PP_NAME=Laravel
 APP_ENV=local
 APP_KEY=base64:9sZhoat7jvh0qH+kvHVt0RUsMhjXm4FXlR59wvWbpVM=
@@ -90,7 +90,7 @@ AWS_BUCKET=
 AWS_USE_PATH_STYLE_ENDPOINT=false
 
 VITE_APP_NAME="${APP_NAME}"
--->
+
 
 ## Instalación
 1. Clonar repositorio:
