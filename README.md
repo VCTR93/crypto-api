@@ -24,14 +24,14 @@
 - usar el comando `php artisan app:actualizar-precios-cripto` para actualizar los precios de las criptomonedas
 - configuracion del archivo .env
 
-APP_TIMEZONE=America/Caracas
+- APP_TIMEZONE=America/Caracas
 
-DB_CONNECTION=pgsql
-DB_HOST=127.0.0.1
-DB_PORT=5432
-DB_DATABASE=api_crypto
-DB_USERNAME=postgres
-DB_PASSWORD=1234
+- DB_CONNECTION=pgsql
+- DB_HOST=127.0.0.1
+- DB_PORT=5432
+- DB_DATABASE=api_crypto
+- DB_USERNAME=postgres
+- DB_PASSWORD=1234
 
 
 ## Instalación
